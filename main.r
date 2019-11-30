@@ -85,20 +85,20 @@ create_price_paths <- function(returns) {
 
 # Read in csv files
 stock <- read.table("data/^GSPC.csv", 
-                 header = TRUE,
-                 sep = ",")
+                    header = TRUE,
+                    sep = ",")
 
 gov_bond <- read.table("data/^LUATTRUU.csv", 
-                    header = TRUE,
-                    sep = ",")
-
-corp_bond <- read.table("data/^SPBDT.csv", 
-                    header = TRUE,
-                    sep = ",")
-
-real_estate <- read.table("data/^RMZ.csv", 
                        header = TRUE,
                        sep = ",")
+
+corp_bond <- read.table("data/^SPBDT.csv", 
+                        header = TRUE,
+                        sep = ",")
+
+real_estate <- read.table("data/^RMZ.csv", 
+                          header = TRUE,
+                          sep = ",")
 
 
 # Calculate new columns
@@ -158,8 +158,8 @@ stock_hist <- ggplot(stock, aes(x=Adj.Earnings)) +
   geom_histogram(binwidth = binwidth) +
   stat_function(fun = function(x) 
     dnorm(x, mean = stock.mean, sd = stock.sd) * binwidth * stock.count)
-   
-    
+
+
 
 gov_bond_hist <- ggplot(gov_bond, aes(x=Adj.Earnings)) +
   xlim(-0.15, 0.15) +
@@ -269,6 +269,6 @@ VaR95 <- numeric(13)
 for (i in 1:13) {
   VaR95[i] <- quantile(pppaths[i,],.05)
 }
- # Legend
+# Legend
 lines(VaR95,type = "l", col = "red",lwd = 3, lty = 6)
 legend("topleft",inset=.05,c("Average", "VaR95%"),fill=c("blue","red"), horiz=TRUE)
