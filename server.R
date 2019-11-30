@@ -247,6 +247,8 @@ shinyServer(function(input, output) {
     
     weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight)
     
+    simulation_n <- input$simulation_n
+    
     #### Simulation ########
     
     # Simulating values from Multivariate Normal distribution
@@ -257,11 +259,11 @@ shinyServer(function(input, output) {
     
     # Simulating 100 different price paths for 12 month time interval for portfolio
     
-    pppaths <- matrix(data = NA, nrow = 13, ncol = 100) # portfolio price paths matrix
-    colnames(pppaths) <- c(1:100)
+    pppaths <- matrix(data = NA, nrow = 13, ncol = simulation_n) # portfolio price paths matrix
+    colnames(pppaths) <- c(1:simulation_n)
     rownames(pppaths) <- c(0:12)
     
-    for (i in 1:100) {
+    for (i in 1:simulation_n) {
       sample <- sim_returns_norm_dist(Mu,cov_matrix,12)   # Simulating a sample of 12 montly returns (1 year) for all asset classes
       pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
       pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
@@ -276,7 +278,7 @@ shinyServer(function(input, output) {
     axis(1, at=1:13, lab=c(0:12))
     box()
     
-    for(i in 2:100) {
+    for(i in 2:simulation_n) {
       lines(pppaths[,i],type = "l")
     }
     
