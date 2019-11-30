@@ -21,23 +21,23 @@ shinyUI(fluidPage(
   # Sidebar with a slider input for number of bins 
   sidebarLayout(
     sidebarPanel(
-        h4("Portfolio asset class weights"),
-       sliderInput("stock_weight",
+        h4("Asset class weight (%) in portfolio"),
+        numericInput("stock_weight",
                    "Stocks:",
                    min = 1,
                    max = 100,
                    value = 25),
-       sliderInput("gov_bond_weight",
+        numericInput("gov_bond_weight",
                    "Goverment bonds",
                    min = 1,
                    max = 100,
                    value = 25),
-       sliderInput("corp_bond_weight",
+        numericInput("corp_bond_weight",
                    "Corporate bonds",
                    min = 1,
                    max = 100,
                    value = 25),
-       sliderInput("real_estate_weight",
+        numericInput("real_estate_weight",
                    "Real estates",
                    min = 1,
                    max = 100,
@@ -46,7 +46,7 @@ shinyUI(fluidPage(
     
     # Show a plot of the generated distribution
     mainPanel(
-       plotOutput("distPlot")
+       plotOutput("pathPlot")
     )
   )
 ))

@@ -7,19 +7,17 @@
 #    http://shiny.rstudio.com/
 #
 
-library(shiny)
 
 if (!require(ggplot2)) install.packages('ggplot2')
 if (!require(dplyr)) install.packages('dplyr')
 if (!require(gridExtra)) install.packages('gridExtra')
+if (!require(remotes)) install.packages('remotes')
+if (!require(shiny)) remotes::install_version("shiny", "1.3.2", upgrade=FALSE)
+if (!require(hms)) remotes::install_version("hms", "0.4.2", upgrade=FALSE)
+library(shiny)
 library(ggplot2)
 library(dplyr)
 library(gridExtra)
-
-##### Instructions #####
-
-# Set working directory to source file location
-# Session -> Set working directory -> To source file location
 
 #### Info ##############
 # Syllabys info
@@ -215,88 +213,89 @@ result_matrix
 
 
 
-#### Inputs ############
-
-# Expected returns of different asset classes
-Mu <- rbind(stock.mean,real_estate.mean,corp_bond.mean,gov_bond.mean) # given by user
-
-# Volatility estimates of different assets classes
-sd_vector <- c(stock.sd,real_estate.sd,corp_bond.sd,gov_bond.sd)# given by user
-
-# Correlations between different assets classes
-correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
-
-# Portfolio weights
-stock.weight <- 0.25
-real_estate.weight <- 0.25
-corp_bond.weight <-0.25
-gov_bond.weight <-0.25
-
-weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight)
-
-#### Simulation ########
-
-# Simulating values from Multivariate Normal distribution
-# Disclaimer: it's known fact that stock market returns are not normally distributed...
-
-# covariance matrix
-cov_matrix <- diag(sd_vector)%*%correl_matrix%*%diag(sd_vector)
-
-# Simulating 100 different price paths for 12 month time interval for portfolio
-
-pppaths <- matrix(data = NA, nrow = 13, ncol = 100) # portfolio price paths matrix
-colnames(pppaths) <- c(1:100)
-rownames(pppaths) <- c(0:12)
-
-for (i in 1:100) {
-  sample <- sim_returns_norm_dist(Mu,cov_matrix,12)   # Simulating a sample of 12 montly returns (1 year) for all asset classes
-  pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
-  pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
-}
-
-
-### Price Paths ########
-
-# Plotting all the paths
-g_range <- range(min(pppaths[13,]),max(pppaths[13,]))
-plot(pppaths[,1], type = "l", xlim = c(0,12), ylim=g_range, ann=FALSE, xaxt="n")
-axis(1, at=1:13, lab=c(0:12))
-box()
-
-for(i in 2:100) {
-  lines(pppaths[,i],type = "l")
-}
-
-# Mean line
-m_line <- numeric(13)
-for (i in 1:13) {
-  m_line[i] <- mean(pppaths[i,])
-}
-
-lines(m_line,type = "l", col = "blue",lwd = 4, lty = 3)
-
-# The 95% Value at Risk (VaR95%)
-VaR95 <- numeric(13)
-for (i in 1:13) {
-  VaR95[i] <- quantile(pppaths[i,],.05)
-}
-# Legend
-lines(VaR95,type = "l", col = "red",lwd = 3, lty = 6)
-legend("topleft",inset=.05,c("Average", "VaR95%"),fill=c("blue","red"), horiz=TRUE)
 
 
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
+  
+  validate_weights <- reactive({
+    weight_sum = input$stock_weight + input$real_estate_weight + input$corp_bond_weight + input$gov_bond_weight
+    validate(
+      need(weight_sum == 100, label = "Sum of weights should be 100")
+    )
+  })
    
-  output$distPlot <- renderPlot({
+  output$pathPlot <- renderPlot({
+    #### Inputs ############
     
-    # generate bins based on input$bins from ui.R
-    x    <- faithful[, 2] 
-    bins <- seq(min(x), max(x), length.out = input$stock_weight + 1)
+    # Expected returns of different asset classes
+    Mu <- rbind(stock.mean,real_estate.mean,corp_bond.mean,gov_bond.mean) # given by user
     
-    # draw the histogram with the specified number of bins
-    hist(x, breaks = bins, col = 'darkgray', border = 'white')
+    # Volatility estimates of different assets classes
+    sd_vector <- c(stock.sd,real_estate.sd,corp_bond.sd,gov_bond.sd)# given by user
+    
+    # Correlations between different assets classes
+    correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
+    
+    # Portfolio weights
+    validate_weights()
+    stock.weight <- input$stock_weight / 100
+    real_estate.weight <- input$real_estate_weight / 100
+    corp_bond.weight <- input$corp_bond_weight / 100
+    gov_bond.weight <- input$gov_bond_weight / 100
+    
+    weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight)
+    
+    #### Simulation ########
+    
+    # Simulating values from Multivariate Normal distribution
+    # Disclaimer: it's known fact that stock market returns are not normally distributed...
+    
+    # covariance matrix
+    cov_matrix <- diag(sd_vector)%*%correl_matrix%*%diag(sd_vector)
+    
+    # Simulating 100 different price paths for 12 month time interval for portfolio
+    
+    pppaths <- matrix(data = NA, nrow = 13, ncol = 100) # portfolio price paths matrix
+    colnames(pppaths) <- c(1:100)
+    rownames(pppaths) <- c(0:12)
+    
+    for (i in 1:100) {
+      sample <- sim_returns_norm_dist(Mu,cov_matrix,12)   # Simulating a sample of 12 montly returns (1 year) for all asset classes
+      pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
+      pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
+    }
+    
+    
+    ### Price Paths ########
+    
+    # Plotting all the paths
+    g_range <- range(min(pppaths[13,]),max(pppaths[13,]))
+    plot(pppaths[,1], type = "l", xlim = c(0,12), ylim=g_range, ann=FALSE, xaxt="n")
+    axis(1, at=1:13, lab=c(0:12))
+    box()
+    
+    for(i in 2:100) {
+      lines(pppaths[,i],type = "l")
+    }
+    
+    # Mean line
+    m_line <- numeric(13)
+    for (i in 1:13) {
+      m_line[i] <- mean(pppaths[i,])
+    }
+    
+    lines(m_line,type = "l", col = "blue",lwd = 4, lty = 3)
+    
+    # The 95% Value at Risk (VaR95%)
+    VaR95 <- numeric(13)
+    for (i in 1:13) {
+      VaR95[i] <- quantile(pppaths[i,],.05)
+    }
+    # Legend
+    lines(VaR95,type = "l", col = "red",lwd = 3, lty = 6)
+    legend("topleft",inset=.05,c("Average", "VaR95%"),fill=c("blue","red"), horiz=TRUE)
     
   })
   
