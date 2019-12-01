@@ -225,9 +225,8 @@ shinyServer(function(input, output) {
       need(weight_sum == 100, label = "Sum of weights should be 100")
     )
   })
-   
-  output$pathPlot <- renderPlot({
-    #### Inputs ############
+  
+  simulate_paths <- reactive({ #### Inputs ############
     
     # Expected returns of different asset classes
     Mu <- rbind(stock.mean,real_estate.mean,corp_bond.mean,gov_bond.mean) # given by user
@@ -247,7 +246,9 @@ shinyServer(function(input, output) {
     
     weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight)
     
-    simulation_n <- input$simulation_n
+    simulation.n <- input$simulation_n
+    simulation.length_months <- input$simulation_length_months
+    simulation.length_month_plus_1 <- simulation.length_months + 1
     
     #### Simulation ########
     
@@ -259,40 +260,50 @@ shinyServer(function(input, output) {
     
     # Simulating 100 different price paths for 12 month time interval for portfolio
     
-    pppaths <- matrix(data = NA, nrow = 13, ncol = simulation_n) # portfolio price paths matrix
-    colnames(pppaths) <- c(1:simulation_n)
-    rownames(pppaths) <- c(0:12)
+    pppaths <- matrix(data = NA, nrow = simulation.length_month_plus_1, ncol = simulation.n) # portfolio price paths matrix
+    colnames(pppaths) <- c(1:simulation.n)
+    rownames(pppaths) <- c(0:simulation.length_months )
     
-    for (i in 1:simulation_n) {
-      sample <- sim_returns_norm_dist(Mu,cov_matrix,12)   # Simulating a sample of 12 montly returns (1 year) for all asset classes
+    for (i in 1:simulation.n) {
+      sample <- sim_returns_norm_dist(Mu,cov_matrix,simulation.length_months )   # Simulating a sample of 12 montly returns (1 year) for all asset classes
       pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
       pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
     }
+    return(pppaths)
     
+  })
+   
+  output$pathPlot <- renderPlot({
+    
+    pppaths <- simulate_paths()
+    simulation.n <- input$simulation_n
+    simulation.length_months <- input$simulation_length_months
+    simulation.length_month_plus_1 <- simulation.length_months + 1
     
     ### Price Paths ########
     
     # Plotting all the paths
-    g_range <- range(min(pppaths[13,]),max(pppaths[13,]))
-    plot(pppaths[,1], type = "l", xlim = c(0,12), ylim=g_range, ann=FALSE, xaxt="n")
-    axis(1, at=1:13, lab=c(0:12))
+    g_range <- range(min(pppaths[simulation.length_month_plus_1,])-5,max(pppaths[simulation.length_month_plus_1,])+5)
+    print(g_range)
+    plot(pppaths[,1], type = "l", xlim = c(0,simulation.length_months ), ylim=g_range, ann=FALSE, xaxt="n")
+    axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
     box()
     
-    for(i in 2:simulation_n) {
+    for(i in 2:simulation.n) {
       lines(pppaths[,i],type = "l")
     }
     
     # Mean line
-    m_line <- numeric(13)
-    for (i in 1:13) {
+    m_line <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
       m_line[i] <- mean(pppaths[i,])
     }
     
     lines(m_line,type = "l", col = "blue",lwd = 4, lty = 3)
     
     # The 95% Value at Risk (VaR95%)
-    VaR95 <- numeric(13)
-    for (i in 1:13) {
+    VaR95 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
       VaR95[i] <- quantile(pppaths[i,],.05)
     }
     # Legend
@@ -300,5 +311,68 @@ shinyServer(function(input, output) {
     legend("topleft",inset=.05,c("Average", "VaR95%"),fill=c("blue","red"), horiz=TRUE)
     
   })
+  
+  output$percentilePathPlot <- renderPlot({
+    
+    pppaths <- simulate_paths()
+    simulation.n <- input$simulation_n
+    simulation.length_months <- input$simulation_length_months
+    simulation.length_month_plus_1 <- simulation.length_months + 1
+    
+    ### Price Paths ########
+    
+    # Plotting all the paths
+    g_range <- range(min(pppaths[simulation.length_month_plus_1,])-5,max(pppaths[simulation.length_month_plus_1,])+5)
+    plot(1, type = "l", xlim = c(0,simulation.length_months ), ylim=g_range, ann=FALSE, xaxt="n")
+    axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
+    box()
+    
+  
+    
+    # Mean line
+    m_line <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      m_line[i] <- mean(pppaths[i,])
+    }
+    
+    lines(m_line,type = "l", col = "blue",lwd = 4, lty = 3)
+    
+    # The 90% percentile
+    per90 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per90[i] <- quantile(pppaths[i,],0.9)
+    }
+    # Legend
+    lines(per90,type = "l", col = "green")
+
+    # The 75% percentile
+    per75 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per75[i] <- quantile(pppaths[i,],0.75)
+    }
+    # Legend
+    lines(per75,type = "l", col = "blue")
+
+    
+    # The 25% percentile
+    per25 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per25[i] <- quantile(pppaths[i,],0.25)
+    }
+    # Legend
+    lines(per25,type = "l", col = "purple")
+    
+    # The 10% percentile
+    per10 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per10[i] <- quantile(pppaths[i,],0.1)
+    }
+    # Legend
+    lines(per10,type = "l", col = "red")
+    
+    legend("topleft",inset=.05,c("Average", "90th percentile", "75th percentile", "25th percentile", "10th percentile"),
+           col=c("blue","green", "blue", "purple", "red"), lty=c(3, 1, 1, 1, 1), cex=0.8)
+  })
+  
   
 })

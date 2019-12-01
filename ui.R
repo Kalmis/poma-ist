@@ -27,6 +27,11 @@ shinyUI(fluidPage(
                    min = 10,
                    max = 10000,
                    value = 100),
+      sliderInput("simulation_length_months",
+                  "Number of simulated moths",
+                  min = 6,
+                  max = 120,
+                  value = 12),
       h4("Asset class weight (%) in portfolio"),
       numericInput("stock_weight",
                  "Stocks:",
@@ -52,7 +57,8 @@ shinyUI(fluidPage(
     
     # Show a plot of the generated distribution
     mainPanel(
-       plotOutput("pathPlot")
+       plotOutput("pathPlot"),
+       plotOutput("percentilePathPlot")
     )
   )
 ))
