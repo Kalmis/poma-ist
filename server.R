@@ -229,11 +229,12 @@ shinyServer(function(input, output) {
   simulate_paths <- reactive({ #### Inputs ############
     
     # Expected returns of different asset classes
-    Mu <- rbind(stock.mean,real_estate.mean,corp_bond.mean,gov_bond.mean) # given by user
+    Mu <- rbind(input$stock_mean/100, input$real_estate_mean/100, input$corp_bond_mean/100, input$gov_bond_mean/100) # given by user
+    print(Mu)
     
     # Volatility estimates of different assets classes
-    sd_vector <- c(stock.sd,real_estate.sd,corp_bond.sd,gov_bond.sd)# given by user
-    
+    sd_vector <- c(input$stock_sd, input$real_estate_sd, input$corp_bond_sd, input$gov_bond_sd)# given by user
+
     # Correlations between different assets classes
     correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
     
