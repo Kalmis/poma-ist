@@ -226,12 +226,56 @@ shinyServer(function(input, output) {
     )
   })
   
+  percentile_paths <- reactive ({
+    pppaths <- simulate_paths()
+    simulation.n <- input$simulation_n
+    simulation.length_months <- input$simulation_length_months
+    simulation.length_month_plus_1 <- simulation.length_months + 1
+    
+    # Mean line
+    m_line <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      m_line[i] <- mean(pppaths[i,])
+    }
+    
+
+    # The 90% percentile
+    per90 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per90[i] <- quantile(pppaths[i,],0.9)
+    }
+    # Legend
+
+    # The 75% percentile
+    per75 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per75[i] <- quantile(pppaths[i,],0.75)
+    }
+    # Legend
+
+    
+    # The 25% percentile
+    per25 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per25[i] <- quantile(pppaths[i,],0.25)
+    }
+    # Legend
+
+    # The 10% percentile
+    per10 <- numeric(simulation.length_month_plus_1)
+    for (i in 1:simulation.length_month_plus_1) {
+      per10[i] <- quantile(pppaths[i,],0.1)
+    }
+
+    return_list <- list(m_line=m_line, per90=per90, per75=per75, per25=per25, per10=per10)
+    
+  })
+  
   simulate_paths <- reactive({ #### Inputs ############
     
     # Expected returns of different asset classes
     Mu <- rbind(input$stock_mean/100, input$real_estate_mean/100, input$corp_bond_mean/100, input$gov_bond_mean/100) # given by user
-    print(Mu)
-    
+
     # Volatility estimates of different assets classes
     sd_vector <- c(input$stock_sd, input$real_estate_sd, input$corp_bond_sd, input$gov_bond_sd)# given by user
 
@@ -285,7 +329,6 @@ shinyServer(function(input, output) {
     
     # Plotting all the paths
     g_range <- range(min(pppaths[simulation.length_month_plus_1,])-5,max(pppaths[simulation.length_month_plus_1,])+5)
-    print(g_range)
     plot(pppaths[,1], type = "l", xlim = c(0,simulation.length_months ), ylim=g_range, ann=FALSE, xaxt="n")
     axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
     box()
@@ -313,9 +356,12 @@ shinyServer(function(input, output) {
     
   })
   
+  
+  
   output$percentilePathPlot <- renderPlot({
     
     pppaths <- simulate_paths()
+    percpaths <- percentile_paths()
     simulation.n <- input$simulation_n
     simulation.length_months <- input$simulation_length_months
     simulation.length_month_plus_1 <- simulation.length_months + 1
@@ -328,52 +374,37 @@ shinyServer(function(input, output) {
     axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
     box()
     
-  
-    
-    # Mean line
-    m_line <- numeric(simulation.length_month_plus_1)
-    for (i in 1:simulation.length_month_plus_1) {
-      m_line[i] <- mean(pppaths[i,])
-    }
-    
-    lines(m_line,type = "l", col = "blue",lwd = 4, lty = 3)
-    
-    # The 90% percentile
-    per90 <- numeric(simulation.length_month_plus_1)
-    for (i in 1:simulation.length_month_plus_1) {
-      per90[i] <- quantile(pppaths[i,],0.9)
-    }
-    # Legend
-    lines(per90,type = "l", col = "green")
-
-    # The 75% percentile
-    per75 <- numeric(simulation.length_month_plus_1)
-    for (i in 1:simulation.length_month_plus_1) {
-      per75[i] <- quantile(pppaths[i,],0.75)
-    }
-    # Legend
-    lines(per75,type = "l", col = "blue")
-
-    
-    # The 25% percentile
-    per25 <- numeric(simulation.length_month_plus_1)
-    for (i in 1:simulation.length_month_plus_1) {
-      per25[i] <- quantile(pppaths[i,],0.25)
-    }
-    # Legend
-    lines(per25,type = "l", col = "purple")
-    
-    # The 10% percentile
-    per10 <- numeric(simulation.length_month_plus_1)
-    for (i in 1:simulation.length_month_plus_1) {
-      per10[i] <- quantile(pppaths[i,],0.1)
-    }
-    # Legend
-    lines(per10,type = "l", col = "red")
+    lines(percpaths$m_line,type = "l", col = "blue",lwd = 4, lty = 3)
+    lines(percpaths$per90,type = "l", col = "green")
+    lines(percpaths$per75,type = "l", col = "blue")
+    lines(percpaths$per25,type = "l", col = "purple")
+    lines(percpaths$per10,type = "l", col = "red")
     
     legend("topleft",inset=.05,c("Average", "90th percentile", "75th percentile", "25th percentile", "10th percentile"),
-           col=c("blue","green", "blue", "purple", "red"), lty=c(3, 1, 1, 1, 1), cex=0.8)
+           col=c("blue","green", "blue", "purple", "red"), lty=c(3, 1, 1, 1, 1))
   })
   
+  output$percentileTable <- renderPrint({
+    percpaths <- percentile_paths()
+    simulation.n <- input$simulation_n
+    simulation.length_months <- input$simulation_length_months
+    simulation.length_month_plus_1 <- simulation.length_months + 1
+    
+    result_matrix <- matrix(NA,5,2)
+    colnames(result_matrix) <- c("Value at end","Return %")
+    rownames(result_matrix) <- c("90th percentile","75th percentile", "50th percentile","25th percentile", "10th percentile")
+    result_matrix[1,1] <- tail(percpaths$per90, n=1)
+    result_matrix[2,1] <- tail(percpaths$per75, n=1)
+    result_matrix[3,1] <- tail(percpaths$m_line, n=1)
+    result_matrix[4,1] <- tail(percpaths$per25, n=1)
+    result_matrix[5,1] <- tail(percpaths$per10, n=1)
+    result_matrix[1,2] <- (tail(percpaths$per90, n=1) / 100 - 1 ) * 100
+    result_matrix[2,2] <- (tail(percpaths$per75, n=1) / 100 - 1 ) * 100
+    result_matrix[3,2] <- (tail(percpaths$m_line, n=1) / 100 - 1 ) * 100
+    result_matrix[4,2] <- (tail(percpaths$per25, n=1) / 100 - 1 ) * 100
+    result_matrix[5,2] <- (tail(percpaths$per10, n=1) / 100 - 1 ) * 100
+
+    result_matrix
+  })
   
 })
