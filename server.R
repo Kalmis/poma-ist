@@ -52,7 +52,7 @@ calculate_log_returns <- function(df) {
   # Uses dplyr package to mutate the dataframe
   df = df %>%
     arrange(Date) %>%
-    mutate( Log_returns = log(Adj.Earnings + 1)  )
+    mutate( Log_returns = log(Adj.Close) - log(lag(Adj.Close))  )
   return(df)
 }
 
@@ -274,10 +274,16 @@ shinyServer(function(input, output) {
   simulate_paths <- reactive({ #### Inputs ############
     
     # Expected returns of different asset classes
-    Mu <- rbind(input$stock_mean/100, input$real_estate_mean/100, input$corp_bond_mean/100, input$gov_bond_mean/100) # given by user
+    Mu <- rbind(log((1 + input$stock_mean/100)^(1/12)), 
+                log((1 + input$real_estate_mean/100)^(1/12)), 
+                log((1 + input$corp_bond_mean/100)^(1/12)), 
+                log((1 + input$gov_bond_mean/100)^(1/12))) # given by user
 
     # Volatility estimates of different assets classes
-    sd_vector <- c(input$stock_sd, input$real_estate_sd, input$corp_bond_sd, input$gov_bond_sd)# given by user
+    sd_vector <- c(input$stock_sd/100 * sqrt(1/12), 
+                   input$real_estate_sd/100 * sqrt(1/12), 
+                   input$corp_bond_sd/100 * sqrt(1/12), 
+                   input$gov_bond_sd/100 * sqrt(1/12))# given by user
 
     # Correlations between different assets classes
     correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
@@ -311,6 +317,7 @@ shinyServer(function(input, output) {
     
     for (i in 1:simulation.n) {
       sample <- sim_returns_norm_dist(Mu,cov_matrix,simulation.length_months )   # Simulating a sample of 12 montly returns (1 year) for all asset classes
+      sample <- (exp(sample)-1)  
       pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
       pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
     }
@@ -328,7 +335,8 @@ shinyServer(function(input, output) {
     ### Price Paths ########
     
     # Plotting all the paths
-    g_range <- range(min(pppaths[simulation.length_month_plus_1,])-5,max(pppaths[simulation.length_month_plus_1,])+5)
+    g_range <- range(min(pppaths[,])-5,max(pppaths[,])+5)
+    print(g_range)
     plot(pppaths[,1], type = "l", xlim = c(0,simulation.length_months ), ylim=g_range, ann=FALSE, xaxt="n")
     axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
     box()
@@ -369,7 +377,7 @@ shinyServer(function(input, output) {
     ### Price Paths ########
     
     # Plotting all the paths
-    g_range <- range(min(pppaths[simulation.length_month_plus_1,])-5,max(pppaths[simulation.length_month_plus_1,])+5)
+    g_range <- range(min(pppaths[,])-5,max(pppaths[,])+5)
     plot(1, type = "l", xlim = c(0,simulation.length_months ), ylim=g_range, ann=FALSE, xaxt="n")
     axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
     box()

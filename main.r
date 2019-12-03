@@ -43,7 +43,7 @@ calculate_log_returns <- function(df) {
   # Uses dplyr package to mutate the dataframe
   df = df %>%
     arrange(Date) %>%
-    mutate( Log_returns = log(Adj.Earnings + 1)  )
+    mutate( Log_returns = log(Adj.Close) - log(lag(Adj.Close))  )
   return(df)
 }
 
@@ -64,7 +64,6 @@ sim_returns_norm_dist <- function(mu,cov_matrix,n) {
 }
 
 create_price_paths <- function(returns) {
-  
   n <- length(returns)
   price <- 100                              #Initial asset price 
   price_path <- numeric(n + 1)
@@ -272,3 +271,112 @@ for (i in 1:13) {
 # Legend
 lines(VaR95,type = "l", col = "red",lwd = 3, lty = 6)
 legend("topleft",inset=.05,c("Average", "VaR95%"),fill=c("blue","red"), horiz=TRUE)
+
+
+
+##### Version 2 ####
+
+
+
+
+
+#### Inputs ############
+
+# Expected returns of different asset classes
+
+# User inputs (expected returns given as annual level)
+
+stock.er.a <- 0.05
+real_estate.er.a <- 0.06
+corp_bond.er.a <- 0.04
+gov_bond.er.a <- 0.02
+
+
+# expected returns transformed to monthly and logarithmic
+
+stock.er.m.log <- log((1 + stock.er.a)^(1/12))
+real_estate.er.m.log <- log((1 + real_estate.er.a)^(1/12))
+corp_bond.er.m.log <- log((1 + corp_bond.er.a)^(1/12))
+gov_bond.er.m.log <- log((1 + gov_bond.er.a)^(1/12))
+
+Mu <- rbind(stock.er.m.log,real_estate.er.m.log,corp_bond.er.m.log,gov_bond.er.m.log)
+
+
+# Volatility estimates of different assets classes (given as annual level)
+stock.vol.a <- 0.15
+real_estate.vol.a <- 0.20
+corp_bond.vol.a <- 0.05
+gov_bond.vol.a <- 0.04
+
+# trasformation to monthly level
+stock.vol.m <- stock.vol.a*sqrt(1/12)
+real_estate.vol.m <- real_estate.vol.a*sqrt(1/12)
+corp_bond.vol.m <- corp_bond.vol.a*sqrt(1/12)
+gov_bond.vol.m <- gov_bond.vol.a*sqrt(1/12)
+
+vol_vector <- c(stock.vol.m, real_estate.vol.m, corp_bond.vol.m, gov_bond.vol.m)
+
+# Correlations between different assets classes (difference whether using returns or log returns not significant)
+correl_matrix <- cor(cbind(stock$Log_returns,real_estate$Log_returns,corp_bond$Log_returns,gov_bond$Log_returns)) # can be given by user
+
+# Portfolio weights
+stock.weight <- 0.25
+real_estate.weight <- 0.25
+corp_bond.weight <-0.25
+gov_bond.weight <-0.25
+
+weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight)
+
+#### Simulation ########
+
+# Simulating values from Multivariate Normal distribution
+
+# covariance matrix
+cov_matrix <- diag(vol_vector)%*%correl_matrix%*%diag(vol_vector)
+
+# Simulating sim different price paths for tm month time interval for portfolio
+
+tm <- 12 # Simulation period in moths
+sim <- 10000 # number of simulations
+
+pppaths <- matrix(data = NA, nrow = tm + 1, ncol = sim) # portfolio price paths matrix
+colnames(pppaths) <- c(1:sim)
+rownames(pppaths) <- c(0:tm)
+
+for (i in 1:sim) {
+  sample <- sim_returns_norm_dist(Mu,cov_matrix,tm)   # Simulating a sample of tm montly returnsfor all asset classes
+  sample <- (exp(sample)-1)                           # Converting logarithmic returns to returns
+  pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
+  pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
+}
+
+
+### Price Paths ########
+
+# Plotting all the paths
+g_range <- range(min(pppaths[tm+1,]),max(pppaths[tm+1,]))
+plot(pppaths[,1], type = "l", xlim = c(0,tm), ylim=g_range, ann=FALSE, xaxt="n")
+axis(1, at=1:(tm+1), lab=c(0:tm))
+box()
+
+for(i in 2:sim) {
+  lines(pppaths[,i],type = "l")
+}
+
+# Mean line
+m_line <- numeric(tm+1)
+for (i in 1:(tm+1)) {
+  m_line[i] <- mean(pppaths[i,])
+}
+
+lines(m_line,type = "l", col = "blue",lwd = 4, lty = 3)
+
+# The 95% Value at Risk (VaR95%)
+VaR95 <- numeric(tm+1)
+for (i in 1:(tm+1)) {
+  VaR95[i] <- quantile(pppaths[i,],.05)
+}
+# Legend
+lines(VaR95,type = "l", col = "red",lwd = 3, lty = 6)
+legend("topleft",inset=.05,c("Average", "VaR95%"),fill=c("blue","red"), horiz=TRUE)
+
