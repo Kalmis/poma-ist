@@ -292,9 +292,9 @@ shinyServer(function(input, output) {
     # Correlations between different assets classes
     inFile <- input$file1
     
-    if (is.null(inFile)) {
-      correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
-    } else {
+    correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
+    
+    if (!is.null(inFile)) {
       
       excel_correlation_data <- my_data <- read_excel(inFile$datapath)
       excel_correlation_data <- excel_correlation_data[,-1]
@@ -313,8 +313,7 @@ shinyServer(function(input, output) {
       correl_matrix[3, 4] <- excel_correlation_data[[4,3]]
     }
     
-    print(correl_matrix)
-    
+
     # Portfolio weights
     validate_weights()
     stock.weight <- input$stock_weight / 100

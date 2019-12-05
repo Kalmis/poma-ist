@@ -28,7 +28,7 @@ shinyUI(fluidPage(
                        "Number of simulations",
                        min = 10,
                        max = 10000,
-                       value = 100),
+                       value = 1000),
           sliderInput("simulation_length_months",
                       "Number of simulated months",
                       min = 6,
