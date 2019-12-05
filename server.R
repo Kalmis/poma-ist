@@ -11,10 +11,12 @@
 if (!require(ggplot2)) install.packages('ggplot2')
 if (!require(dplyr)) install.packages('dplyr')
 if (!require(gridExtra)) install.packages('gridExtra')
+if (!require(readxl)) install.packages('readxl')
 if (!require(remotes)) install.packages('remotes')
 if (!require(shiny)) remotes::install_version("shiny", "1.3.2", upgrade=FALSE)
 if (!require(hms)) remotes::install_version("hms", "0.4.2", upgrade=FALSE)
 library(shiny)
+library(readxl)
 library(ggplot2)
 library(dplyr)
 library(gridExtra)
@@ -207,7 +209,7 @@ result_matrix[3,1] <- mean(corp_bond$Adj.Earnings)
 result_matrix[3,2] <- sd(corp_bond$Adj.Earnings)
 result_matrix[4,1] <- mean(real_estate$Adj.Earnings)
 result_matrix[4,2] <- sd(real_estate$Adj.Earnings)
-result_matrix
+
 
 
 
@@ -220,7 +222,7 @@ result_matrix
 shinyServer(function(input, output) {
   
   validate_weights <- reactive({
-    weight_sum = input$stock_weight + input$real_estate_weight + input$corp_bond_weight + input$gov_bond_weight
+    weight_sum = input$stock_weight + input$real_estate_weight + input$corp_bond_weight + input$gov_bond_weight + input$cash_weight
     validate(
       need(weight_sum == 100, label = "Sum of weights should be 100")
     )
@@ -274,19 +276,44 @@ shinyServer(function(input, output) {
   simulate_paths <- reactive({ #### Inputs ############
     
     # Expected returns of different asset classes
-    Mu <- rbind(log((1 + input$stock_mean/100)^(1/12)), 
-                log((1 + input$real_estate_mean/100)^(1/12)), 
-                log((1 + input$corp_bond_mean/100)^(1/12)), 
-                log((1 + input$gov_bond_mean/100)^(1/12))) # given by user
+    Mu <- rbind(log((1 + input$stock_mean/100)), 
+                log((1 + input$real_estate_mean/100)), 
+                log((1 + input$corp_bond_mean/100)), 
+                log((1 + input$gov_bond_mean/100))) # given by user
+    
+    cash.mean <- input$cash_mean
 
     # Volatility estimates of different assets classes
-    sd_vector <- c(input$stock_sd/100 * sqrt(1/12), 
-                   input$real_estate_sd/100 * sqrt(1/12), 
-                   input$corp_bond_sd/100 * sqrt(1/12), 
-                   input$gov_bond_sd/100 * sqrt(1/12))# given by user
+    sd_vector <- c(input$stock_sd/100, 
+                   input$real_estate_sd/100, 
+                   input$corp_bond_sd/100, 
+                   input$gov_bond_sd/100)# given by user
 
     # Correlations between different assets classes
-    correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
+    inFile <- input$file1
+    
+    if (is.null(inFile)) {
+      correl_matrix <- cor(cbind(stock$Adj.Earnings,real_estate$Adj.Earnings,corp_bond$Adj.Earnings,gov_bond$Adj.Earnings)) # given by user
+    } else {
+      
+      excel_correlation_data <- my_data <- read_excel(inFile$datapath)
+      excel_correlation_data <- excel_correlation_data[,-1]
+      correl_matrix[2,1] <- excel_correlation_data[[2,1]]
+      correl_matrix[3,1] <- excel_correlation_data[[3,1]]
+      correl_matrix[4,1] <- excel_correlation_data[[4,1]]
+      correl_matrix[3,2] <- excel_correlation_data[[3,2]]
+      correl_matrix[4,2] <- excel_correlation_data[[4,2]]
+      correl_matrix[4,3] <- excel_correlation_data[[4,3]]
+      
+      correl_matrix[1, 2] <- excel_correlation_data[[2,1]]
+      correl_matrix[1, 3] <- excel_correlation_data[[3,1]]
+      correl_matrix[1, 4] <- excel_correlation_data[[4,1]]
+      correl_matrix[2, 3] <- excel_correlation_data[[3,2]]
+      correl_matrix[2, 4] <- excel_correlation_data[[4,2]]
+      correl_matrix[3, 4] <- excel_correlation_data[[4,3]]
+    }
+    
+    print(correl_matrix)
     
     # Portfolio weights
     validate_weights()
@@ -294,8 +321,9 @@ shinyServer(function(input, output) {
     real_estate.weight <- input$real_estate_weight / 100
     corp_bond.weight <- input$corp_bond_weight / 100
     gov_bond.weight <- input$gov_bond_weight / 100
+    cash.weight <- input$cash_weight / 100
     
-    weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight)
+    weight_vector <- rbind(stock.weight,real_estate.weight,corp_bond.weight,gov_bond.weight, cash.weight)
     
     simulation.n <- input$simulation_n
     simulation.length_months <- input$simulation_length_months
@@ -308,16 +336,19 @@ shinyServer(function(input, output) {
     
     # covariance matrix
     cov_matrix <- diag(sd_vector)%*%correl_matrix%*%diag(sd_vector)
-    
+
     # Simulating 100 different price paths for 12 month time interval for portfolio
     
     pppaths <- matrix(data = NA, nrow = simulation.length_month_plus_1, ncol = simulation.n) # portfolio price paths matrix
     colnames(pppaths) <- c(1:simulation.n)
     rownames(pppaths) <- c(0:simulation.length_months )
     
+    cash_returns <- rep(cash.mean/100, simulation.length_months)
+    
     for (i in 1:simulation.n) {
       sample <- sim_returns_norm_dist(Mu,cov_matrix,simulation.length_months )   # Simulating a sample of 12 montly returns (1 year) for all asset classes
       sample <- (exp(sample)-1)  
+      sample <- cbind(sample, cash_returns)
       pf_returns <- sample%*%weight_vector                # Constructing monthly portfolio returns
       pppaths[,i]<- create_price_paths(pf_returns)        # creating 1 year cumulative price paths
     }
@@ -336,7 +367,6 @@ shinyServer(function(input, output) {
     
     # Plotting all the paths
     g_range <- range(min(pppaths[,])-5,max(pppaths[,])+5)
-    print(g_range)
     plot(pppaths[,1], type = "l", xlim = c(0,simulation.length_months ), ylim=g_range, ann=FALSE, xaxt="n")
     axis(1, at=1:simulation.length_month_plus_1, lab=c(0:simulation.length_months ))
     box()
